@@ -1,6 +1,6 @@
 """initial schema
 
-Revision ID: 92a08d154ac8
+Revision ID: 25734ec88201
 Revises:
 Create Date: 2026-05-13
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 
-revision: str = "92a08d154ac8"
+revision: str = "25734ec88201"
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

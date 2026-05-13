@@ -1,7 +1,7 @@
 """add scan scheduling
 
 Revision ID: 20260513_0001
-Revises: 92a08d154ac8
+Revises: 25734ec88201
 Create Date: 2026-05-13
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ from sqlalchemy.dialects import postgresql
 
 
 revision: str = "20260513_0001"
-down_revision: Union[str, None] = "92a08d154ac8"
+down_revision: Union[str, None] = "25734ec88201"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
