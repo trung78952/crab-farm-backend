@@ -22,9 +22,17 @@ class Settings(BaseSettings):
     mqtt_client_id: str = "crab-farm-backend"
     mqtt_keepalive: int = 60
 
-    cors_origins: list[str] = ["http://localhost:5173"]
+    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:8080"]
     storage_dir: Path = Path("storage")
     public_storage_url: str = "/storage"
+
+    jwt_secret_key: str = "change-me-in-production"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 60 * 12
+
+    admin_username: str = "admin"
+    admin_password: str = "admin123"
+    admin_email: str = "admin@example.com"
 
     model_config = SettingsConfigDict(
         env_file=".env",

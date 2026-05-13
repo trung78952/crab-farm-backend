@@ -16,6 +16,57 @@ docker compose exec backend alembic revision --autogenerate -m "init"
 docker compose exec backend alembic upgrade head
 ```
 
+Sau khi pull code có migration sẵn, thường chỉ cần:
+
+```bash
+docker compose exec backend alembic upgrade head
+```
+
+Trong môi trường Docker dev, `./alembic/versions` được mount vào container để migration tạo bằng `alembic revision` không bị mất sau khi rebuild image.
+
+Tạo admin ban đầu:
+
+```bash
+docker compose exec backend python -m app.scripts.create_admin
+```
+
+Mặc định đọc từ env:
+
+- `ADMIN_USERNAME=admin`
+- `ADMIN_PASSWORD=admin123`
+- `ADMIN_EMAIL=admin@example.com`
+
+Login lấy JWT:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}'
+```
+
+Gọi API có Bearer token:
+
+```bash
+curl http://localhost:8000/api/v1/tanks \
+  -H "Authorization: Bearer <access_token>"
+```
+
+Chạy frontend riêng:
+
+```bash
+cd ../crab-farm-frontend
+npm install
+npm run serve
+```
+
+Frontend dev server mặc định: http://localhost:8080
+
+Hoặc chạy kèm bằng Docker Compose service `frontend`:
+
+```bash
+docker compose up --build frontend
+```
+
 API docs:
 
 - Swagger UI: http://localhost:8000/docs
@@ -29,6 +80,8 @@ API docs:
 - Camera: `POST /api/v1/camera/capture/{tank_id}`, `POST /api/v1/camera/upload`, `GET /api/v1/camera/images`
 - Detections: `POST /api/v1/detections/mock`, `GET /api/v1/detections`, `GET /api/v1/detections/by-tank/{tank_id}`
 - Harvest: `POST /api/v1/harvest/queue/{tank_id}`, `POST /api/v1/harvest/start/{harvest_id}`, `GET /api/v1/harvest`
+- Scan schedules: `GET/POST /api/v1/scan-schedules`, `GET/PATCH/DELETE /api/v1/scan-schedules/{schedule_id}`, `POST /api/v1/scan-schedules/{schedule_id}/enable`, `POST /api/v1/scan-schedules/{schedule_id}/disable`
+- Scans: `POST /api/v1/scans/run-all`, `POST /api/v1/scans/run-tank/{tank_id}`, `GET /api/v1/scans/jobs`, `GET /api/v1/scans/jobs/{job_id}`
 
 Ví dụ tạo tank:
 
@@ -53,6 +106,22 @@ curl -X POST http://localhost:8000/api/v1/camera/upload \
   -F "tank_id=<tank_uuid>" \
   -F "file=@sample.jpg"
 ```
+
+Ví dụ tạo lịch scan tất cả bể mỗi 15 phút:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/scan-schedules \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Scan every 15 minutes","interval_minutes":15,"scan_mode":"all_tanks","is_active":true}'
+```
+
+Ví dụ chạy scan thủ công một bể:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/scans/run-tank/<tank_uuid>
+```
+
+Scan scheduler chạy cùng FastAPI và kiểm tra lịch đến hạn mỗi 60 giây. MVP hiện tạo `scan_job`, tạo `scan_job_items`, chạy tuần tự qua các trạng thái `moving -> capturing -> detecting -> success`, publish motion/camera MQTT command và để sẵn placeholder cho bước chờ ACK, nhận ảnh, chạy detection thật.
 
 ## Test MQTT
 

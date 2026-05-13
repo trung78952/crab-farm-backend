@@ -34,3 +34,4 @@ class Tank(Base):
     detections = relationship("Detection", back_populates="tank")
     motion_commands = relationship("MotionCommand", back_populates="tank")
     harvests = relationship("Harvest", back_populates="tank")
+    scan_job_items = relationship("ScanJobItem", back_populates="tank")

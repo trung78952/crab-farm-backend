@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import require_roles
 from app.core.database import get_db
 from app.schemas.detection import DetectionMockCreate, DetectionRead
 from app.services import detection_service
@@ -10,7 +11,7 @@ from app.services import detection_service
 router = APIRouter()
 
 
-@router.post("/mock", response_model=DetectionRead, status_code=status.HTTP_201_CREATED)
+@router.post("/mock", response_model=DetectionRead, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_roles("operator"))])
 async def create_mock_detection(data: DetectionMockCreate, db: AsyncSession = Depends(get_db)):
     return await detection_service.create_mock_detection(db, data)
 

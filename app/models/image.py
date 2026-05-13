@@ -23,3 +23,4 @@ class Image(Base):
     tank = relationship("Tank", back_populates="images")
     device = relationship("Device", back_populates="images")
     detections = relationship("Detection", back_populates="image")
+    scan_job_items = relationship("ScanJobItem", back_populates="image")

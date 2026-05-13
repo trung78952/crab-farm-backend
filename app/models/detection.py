@@ -25,3 +25,4 @@ class Detection(Base):
     tank = relationship("Tank", back_populates="detections")
     image = relationship("Image", back_populates="detections")
     harvests = relationship("Harvest", back_populates="detection")
+    scan_job_items = relationship("ScanJobItem", back_populates="detection")

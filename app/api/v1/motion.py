@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import require_roles
 from app.core.database import get_db
 from app.schemas.motion import GCodeRequest, MotionCommandRead, MoveToTankRequest
 from app.services import motion_service
@@ -10,23 +11,23 @@ from app.services import motion_service
 router = APIRouter()
 
 
-@router.post("/home", response_model=MotionCommandRead)
+@router.post("/home", response_model=MotionCommandRead, dependencies=[Depends(require_roles("operator"))])
 async def home(db: AsyncSession = Depends(get_db)):
     return await motion_service.home(db)
 
 
-@router.post("/move-to-tank/{tank_id}", response_model=MotionCommandRead)
+@router.post("/move-to-tank/{tank_id}", response_model=MotionCommandRead, dependencies=[Depends(require_roles("operator"))])
 async def move_to_tank(tank_id: UUID, data: MoveToTankRequest | None = None, db: AsyncSession = Depends(get_db)):
     speed = data.speed if data is not None else 3000
     return await motion_service.move_to_tank(db, tank_id, speed=speed)
 
 
-@router.post("/gcode", response_model=MotionCommandRead)
+@router.post("/gcode", response_model=MotionCommandRead, dependencies=[Depends(require_roles("operator"))])
 async def gcode(data: GCodeRequest, db: AsyncSession = Depends(get_db)):
     return await motion_service.send_gcode(db, data)
 
 
-@router.post("/emergency-stop", response_model=MotionCommandRead)
+@router.post("/emergency-stop", response_model=MotionCommandRead, dependencies=[Depends(require_roles("operator"))])
 async def emergency_stop(db: AsyncSession = Depends(get_db)):
     return await motion_service.emergency_stop(db)
 

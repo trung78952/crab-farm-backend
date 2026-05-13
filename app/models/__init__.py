@@ -6,6 +6,10 @@ from app.models.detection import Detection
 from app.models.motion_command import MotionCommand
 from app.models.harvest import Harvest
 from app.models.mqtt_log import MqttLog
+from app.models.user import User
+from app.models.scan_schedule import ScanSchedule
+from app.models.scan_job import ScanJob
+from app.models.scan_job_item import ScanJobItem
 
 __all__ = [
     "Base",
@@ -16,4 +20,8 @@ __all__ = [
     "MotionCommand",
     "Harvest",
     "MqttLog",
+    "User",
+    "ScanSchedule",
+    "ScanJob",
+    "ScanJobItem",
 ]

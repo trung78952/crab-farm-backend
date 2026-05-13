@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api.router import api_router
 from app.core.config import settings
 from app.core.mqtt import mqtt_manager
+from app.services.scan_scheduler import scan_scheduler
 
 
 @asynccontextmanager
@@ -14,7 +15,9 @@ async def lifespan(app: FastAPI):
     settings.storage_dir.mkdir(parents=True, exist_ok=True)
     (settings.storage_dir / "raw").mkdir(parents=True, exist_ok=True)
     mqtt_manager.connect()
+    scan_scheduler.start()
     yield
+    await scan_scheduler.stop()
     mqtt_manager.disconnect()
 
 
