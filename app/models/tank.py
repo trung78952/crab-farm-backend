@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Integer, String, func
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -12,6 +12,7 @@ class Tank(Base):
     __tablename__ = "tanks"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    shelf_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("shelves.id", ondelete="RESTRICT"), nullable=True, index=True)
     code: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     row_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -30,8 +31,10 @@ class Tank(Base):
         nullable=False,
     )
 
+    shelf = relationship("Shelf", back_populates="tanks")
     images = relationship("Image", back_populates="tank")
     detections = relationship("Detection", back_populates="tank")
     motion_commands = relationship("MotionCommand", back_populates="tank")
     harvests = relationship("Harvest", back_populates="tank")
     scan_job_items = relationship("ScanJobItem", back_populates="tank")
+    recheck_tasks = relationship("RecheckTask", back_populates="tank")

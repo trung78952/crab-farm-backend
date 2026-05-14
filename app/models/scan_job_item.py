@@ -15,6 +15,8 @@ class ScanJobItem(Base):
     scan_job_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("scan_jobs.id", ondelete="CASCADE"), nullable=False, index=True)
     tank_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tanks.id", ondelete="CASCADE"), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="queued", index=True)
+    motion_command_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("motion_commands.id", ondelete="SET NULL"), nullable=True)
+    camera_command_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     image_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("images.id", ondelete="SET NULL"), nullable=True)
     detection_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("detections.id", ondelete="SET NULL"), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -32,3 +34,4 @@ class ScanJobItem(Base):
     tank = relationship("Tank", back_populates="scan_job_items")
     image = relationship("Image", back_populates="scan_job_items")
     detection = relationship("Detection", back_populates="scan_job_items")
+    motion_command = relationship("MotionCommand")

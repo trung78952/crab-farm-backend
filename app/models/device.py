@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, func
+from sqlalchemy import DateTime, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -12,6 +12,7 @@ class Device(Base):
     __tablename__ = "devices"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    shelf_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("shelves.id", ondelete="SET NULL"), nullable=True, index=True)
     code: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -27,4 +28,5 @@ class Device(Base):
         nullable=False,
     )
 
+    shelf = relationship("Shelf", back_populates="devices", foreign_keys=[shelf_id])
     images = relationship("Image", back_populates="device")

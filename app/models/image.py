@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -17,6 +17,7 @@ class Image(Base):
     image_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     image_url: Mapped[str] = mapped_column(String(1024), nullable=False)
     kind: Mapped[str] = mapped_column(String(32), nullable=False, default="raw", index=True)
+    is_simulation: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

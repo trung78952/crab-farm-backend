@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models.user import User
-from app.schemas.auth import CreateAdminRequest, LoginRequest, TokenResponse
+from app.schemas.auth import ChangePasswordRequest, CreateAdminRequest, LoginRequest, TokenResponse
 
 
 async def authenticate_user(db: AsyncSession, data: LoginRequest) -> TokenResponse:
@@ -52,3 +52,16 @@ async def create_admin_user(db: AsyncSession, data: CreateAdminRequest) -> User:
     await db.commit()
     await db.refresh(user)
     return user
+
+
+async def change_password(db: AsyncSession, user: User, data: ChangePasswordRequest) -> dict[str, str]:
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is inactive")
+    if len(data.new_password) < 8:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New password must be at least 8 characters")
+    if not verify_password(data.current_password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
+
+    user.password_hash = hash_password(data.new_password)
+    await db.commit()
+    return {"message": "Password changed successfully"}

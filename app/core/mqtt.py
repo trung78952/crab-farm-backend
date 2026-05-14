@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 SUBSCRIBE_TOPICS = [
+    "farm/#",
     "farm/motion/ack",
     "farm/motion/status",
     "farm/motion/error",
@@ -80,7 +81,7 @@ class MQTTManager:
         from app.services.mqtt_service import handle_incoming_mqtt_message
 
         try:
-            asyncio.run(handle_incoming_mqtt_message(message.topic, payload_text, message.qos))
+            asyncio.run(handle_incoming_mqtt_message(message.topic, payload_text, message.qos, message.retain))
         except Exception:
             logger.exception("Failed to process MQTT message topic=%s", message.topic)
 

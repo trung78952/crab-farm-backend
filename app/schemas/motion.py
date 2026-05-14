@@ -21,6 +21,7 @@ class MotionCommandStatus(str, Enum):
     done = "done"
     failed = "failed"
     timeout = "timeout"
+    simulated = "simulated"
 
 
 class MoveToTankRequest(BaseModel):

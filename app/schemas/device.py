@@ -19,6 +19,7 @@ class DeviceStatus(str, Enum):
 
 
 class DeviceBase(BaseModel):
+    shelf_id: UUID | None = None
     code: str
     type: DeviceType
     name: str

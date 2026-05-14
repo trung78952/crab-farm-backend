@@ -5,7 +5,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.tank import Tank
+from app.models.shelf import Shelf
 from app.schemas.tank import TankCreate, TankUpdate
+from app.services.realtime_service import realtime_service
 
 
 async def list_tanks(db: AsyncSession) -> list[Tank]:
@@ -21,6 +23,8 @@ async def get_tank(db: AsyncSession, tank_id: UUID) -> Tank:
 
 
 async def create_tank(db: AsyncSession, data: TankCreate) -> Tank:
+    if data.shelf_id is not None and await db.get(Shelf, data.shelf_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shelf not found")
     tank = Tank(**data.model_dump())
     db.add(tank)
     await db.commit()
@@ -30,10 +34,14 @@ async def create_tank(db: AsyncSession, data: TankCreate) -> Tank:
 
 async def update_tank(db: AsyncSession, tank_id: UUID, data: TankUpdate) -> Tank:
     tank = await get_tank(db, tank_id)
-    for key, value in data.model_dump(exclude_unset=True).items():
+    payload = data.model_dump(exclude_unset=True)
+    if payload.get("shelf_id") is not None and await db.get(Shelf, payload["shelf_id"]) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shelf not found")
+    for key, value in payload.items():
         setattr(tank, key, value)
     await db.commit()
     await db.refresh(tank)
+    await realtime_service.broadcast("device_status_updated", {"tank_id": str(tank.id), "status": tank.status})
     return tank
 
 

@@ -9,7 +9,8 @@ from sqlalchemy import select
 from app.core.database import AsyncSessionLocal
 from app.models.scan_schedule import ScanSchedule
 from app.services.scan_schedule_service import mark_schedule_dispatched
-from app.services.scan_service import create_scan_job_from_schedule, start_scan_job_background
+from app.services.scan_service import create_scan_job_from_schedule
+from app.services.recheck_task_service import run_due_recheck_tasks_now
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +65,7 @@ async def dispatch_due_scan_schedules() -> None:
             job = await create_scan_job_from_schedule(db, schedule)
             await mark_schedule_dispatched(db, schedule, now=now)
             await db.commit()
-            start_scan_job_background(job.id)
+        await run_due_recheck_tasks_now()
 
 
 scan_scheduler = ScanScheduler()

@@ -47,3 +47,12 @@ class CreateAdminRequest(BaseModel):
     username: str = "admin"
     password: str = "admin123"
     email: EmailStr | None = "admin@example.com"
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class MessageResponse(BaseModel):
+    message: str

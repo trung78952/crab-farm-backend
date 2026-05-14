@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,5 +12,19 @@ router = APIRouter()
 
 
 @router.get("", response_model=list[MqttLogRead], dependencies=[Depends(require_roles("viewer", "operator"))])
-async def list_mqtt_logs(limit: int = Query(100, ge=1, le=500), db: AsyncSession = Depends(get_db)):
-    return await mqtt_log_service.list_mqtt_logs(db, limit=limit)
+async def list_mqtt_logs(
+    topic: str | None = None,
+    direction: str | None = None,
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    since: datetime | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    return await mqtt_log_service.list_mqtt_logs(
+        db,
+        topic=topic,
+        direction=direction,
+        limit=limit,
+        offset=offset,
+        since=since,
+    )

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.harvest import Harvest
 from app.services.motion_service import create_harvest_motion_command
+from app.services.realtime_service import realtime_service
 from app.services.tank_service import get_tank
 
 
@@ -16,6 +17,7 @@ async def queue_harvest(db: AsyncSession, tank_id: UUID, note: str | None = None
     db.add(harvest)
     await db.commit()
     await db.refresh(harvest)
+    await realtime_service.broadcast("harvest_updated", {"id": str(harvest.id), "status": harvest.status, "tank_id": str(harvest.tank_id)})
     return harvest
 
 
@@ -31,6 +33,7 @@ async def start_harvest(db: AsyncSession, harvest_id: UUID) -> Harvest:
     harvest.status = "running"
     await db.commit()
     await db.refresh(harvest)
+    await realtime_service.broadcast("harvest_updated", {"id": str(harvest.id), "status": harvest.status})
     return harvest
 
 
@@ -46,4 +49,5 @@ async def complete_harvest(db: AsyncSession, harvest: Harvest, success: bool, no
         harvest.note = note
     await db.commit()
     await db.refresh(harvest)
+    await realtime_service.broadcast("harvest_updated", {"id": str(harvest.id), "status": harvest.status})
     return harvest

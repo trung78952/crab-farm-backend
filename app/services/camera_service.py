@@ -15,25 +15,34 @@ from app.services.mqtt_service import log_mqtt_message
 from app.services.tank_service import get_tank
 from app.utils.id_generator import generate_command_id
 
-CAMERA_CMD_TOPIC = "farm/camera/cmd"
+DEFAULT_CAMERA_CMD_TOPIC = "farm/camera/cmd"
 
 
 async def capture_tank_image(db: AsyncSession, tank_id: UUID) -> dict:
     tank = await get_tank(db, tank_id)
     cmd_id = generate_command_id("CAM")
-    payload = {"cmd_id": cmd_id, "type": "capture", "tank_id": tank.code}
+    shelf = await db.get(__import__("app.models.shelf", fromlist=["Shelf"]).Shelf, tank.shelf_id) if tank.shelf_id else None
+    topic = f"farm/shelf/{shelf.code}/camera/cmd" if shelf else DEFAULT_CAMERA_CMD_TOPIC
+    payload = {
+        "cmd_id": cmd_id,
+        "shelf_code": shelf.code if shelf else None,
+        "tank_code": tank.code,
+        "type": "capture",
+        "tank_id": tank.code,
+    }
 
-    try:
-        mqtt_manager.publish_json(CAMERA_CMD_TOPIC, payload)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Failed to publish camera command: {exc}",
-        ) from exc
+    if not (settings.simulation_mode and not settings.mqtt_simulate_publish):
+        try:
+            mqtt_manager.publish_json(topic, payload)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Failed to publish camera command: {exc}",
+            ) from exc
 
-    await log_mqtt_message(db, direction="publish", topic=CAMERA_CMD_TOPIC, payload=payload)
+    await log_mqtt_message(db, direction="publish", topic=topic, payload=payload)
     await db.commit()
-    return {"cmd_id": cmd_id, "topic": CAMERA_CMD_TOPIC, "payload": payload}
+    return {"cmd_id": cmd_id, "topic": topic, "payload": payload}
 
 
 async def upload_image(
@@ -65,6 +74,7 @@ async def upload_image(
         image_path=str(target_path),
         image_url=image_url,
         kind="raw",
+        is_simulation=settings.simulation_mode,
         captured_at=datetime.now(timezone.utc),
     )
     db.add(image)

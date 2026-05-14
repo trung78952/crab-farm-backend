@@ -10,7 +10,9 @@ class MqttLogRead(BaseModel):
     direction: str
     topic: str
     payload: dict[str, Any]
+    raw_payload: str | None = None
     qos: int
+    retain: bool | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

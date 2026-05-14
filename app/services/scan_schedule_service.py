@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.scan_schedule import ScanSchedule
+from app.models.shelf import Shelf
 from app.models.tank import Tank
 from app.schemas.scan import ScanScheduleCreate, ScanScheduleUpdate
 
@@ -23,6 +24,7 @@ async def get_scan_schedule(db: AsyncSession, schedule_id: UUID) -> ScanSchedule
 
 
 async def create_scan_schedule(db: AsyncSession, data: ScanScheduleCreate) -> ScanSchedule:
+    await _validate_shelf_id(db, data.shelf_id)
     await _validate_tank_ids(db, data.tank_ids)
     payload = data.model_dump()
     payload["tank_ids"] = _dump_tank_ids(data.tank_ids)
@@ -43,6 +45,8 @@ async def update_scan_schedule(db: AsyncSession, schedule_id: UUID, data: ScanSc
     if "tank_ids" in payload:
         await _validate_tank_ids(db, data.tank_ids)
         payload["tank_ids"] = _dump_tank_ids(data.tank_ids)
+    if "shelf_id" in payload:
+        await _validate_shelf_id(db, data.shelf_id)
 
     for key, value in payload.items():
         setattr(schedule, key, value)
@@ -51,6 +55,11 @@ async def update_scan_schedule(db: AsyncSession, schedule_id: UUID, data: ScanSc
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="tank_ids is required when scan_mode is selected_tanks",
+        )
+    if schedule.scan_mode == "single_shelf" and schedule.shelf_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="shelf_id is required when scan_mode is single_shelf",
         )
 
     await db.commit()
@@ -101,6 +110,13 @@ async def _validate_tank_ids(db: AsyncSession, tank_ids: list[UUID] | None) -> N
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"message": "Some tanks do not exist", "tank_ids": missing_ids},
         )
+
+
+async def _validate_shelf_id(db: AsyncSession, shelf_id: UUID | None) -> None:
+    if shelf_id is None:
+        return
+    if await db.get(Shelf, shelf_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shelf not found")
 
 
 def _dump_tank_ids(tank_ids: list[UUID] | None) -> list[str] | None:

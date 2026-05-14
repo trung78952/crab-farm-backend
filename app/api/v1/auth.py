@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user, require_roles
 from app.core.database import get_db
-from app.schemas.auth import CreateAdminRequest, LoginRequest, TokenResponse, UserRead
+from app.schemas.auth import ChangePasswordRequest, CreateAdminRequest, LoginRequest, MessageResponse, TokenResponse, UserRead
 from app.services import auth_service
 
 router = APIRouter()
@@ -22,6 +22,15 @@ async def me(current_user=Depends(get_current_user)):
 @router.post("/logout")
 async def logout(current_user=Depends(get_current_user)):
     return {"status": "ok"}
+
+
+@router.post("/change-password", response_model=MessageResponse)
+async def change_password(
+    data: ChangePasswordRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    return await auth_service.change_password(db, current_user, data)
 
 
 @router.post("/create-admin", response_model=UserRead, status_code=status.HTTP_201_CREATED)

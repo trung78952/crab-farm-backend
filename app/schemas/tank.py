@@ -15,6 +15,7 @@ class TankStatus(str, Enum):
 
 
 class TankBase(BaseModel):
+    shelf_id: UUID | None = None
     code: str
     name: str
     row_index: int = 0
@@ -31,6 +32,7 @@ class TankCreate(TankBase):
 
 
 class TankUpdate(BaseModel):
+    shelf_id: UUID | None = None
     code: str | None = None
     name: str | None = None
     row_index: int | None = None

@@ -32,7 +32,18 @@ class DetectionRead(BaseModel):
     bbox: dict[str, Any]
     action: DetectionAction
     model_name: str | None
+    model_version: str | None = None
+    is_verified: bool = False
+    human_label: str | None = None
+    verified_by: UUID | None = None
+    verified_at: datetime | None = None
+    is_simulation: bool = False
     detected_at: datetime
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class DetectionVerifyRequest(BaseModel):
+    is_correct: bool
+    human_label: str | None = None
