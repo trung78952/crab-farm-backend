@@ -31,3 +31,7 @@ class Shelf(Base):
     devices = relationship("Device", back_populates="shelf", foreign_keys="Device.shelf_id")
     scan_schedules = relationship("ScanSchedule", back_populates="shelf")
     scan_jobs = relationship("ScanJob", back_populates="shelf")
+    sensors = relationship("Sensor", back_populates="shelf", passive_deletes=True)
+    sensor_readings = relationship("SensorReading", back_populates="shelf", passive_deletes=True)
+    sensor_alert_rules = relationship("SensorAlertRule", back_populates="shelf", passive_deletes=True)
+    sensor_alerts = relationship("SensorAlert", back_populates="shelf", passive_deletes=True)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 from typing import Any
 
@@ -10,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import AsyncSessionLocal
 from app.models.motion_command import MotionCommand
 from app.models.mqtt_log import MqttLog
+
+logger = logging.getLogger(__name__)
 
 
 def parse_mqtt_payload(payload_text: str) -> dict[str, Any]:
@@ -65,6 +68,13 @@ async def handle_incoming_mqtt_message(topic: str, payload_text: str, qos: int =
             await _handle_camera_result(db, payload)
         elif topic.endswith("/device/status"):
             await _handle_device_status(db, payload)
+        elif _is_sensor_topic(topic):
+            try:
+                from app.services.sensor_service import create_sensor_reading_from_mqtt
+
+                await create_sensor_reading_from_mqtt(db, topic, payload)
+            except Exception:
+                logger.exception("Failed to process sensor MQTT message topic=%s", topic)
 
         await db.commit()
 
@@ -168,3 +178,8 @@ async def _handle_camera_result(db: AsyncSession, payload: dict[str, Any]) -> No
             "scan_job_item_updated",
             {"id": str(item.id), "status": item.status, "image_id": str(item.image_id)},
         )
+
+
+def _is_sensor_topic(topic: str) -> bool:
+    parts = topic.split("/")
+    return len(parts) >= 5 and parts[0] == "farm" and "sensor" in parts

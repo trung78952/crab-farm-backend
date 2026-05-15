@@ -26,7 +26,7 @@ def ai_status() -> AiStatusRead:
     )
 
 
-async def detect_image(db: AsyncSession, image_id: UUID) -> Detection:
+async def detect_image(db: AsyncSession, image_id: UUID, *, verification: bool = False) -> Detection:
     image = await db.get(Image, image_id)
     if image is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
@@ -74,7 +74,7 @@ async def detect_image(db: AsyncSession, image_id: UUID) -> Detection:
     )
     db.add(detection)
     await db.flush()
-    await handle_detection_decision(db, detection)
+    await handle_detection_decision(db, detection, verification=verification)
     await db.commit()
     await db.refresh(detection)
     await realtime_service.broadcast(

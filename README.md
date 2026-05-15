@@ -1,28 +1,19 @@
 # Crab Farm Backend
 
-MVP backend cho hệ thống nuôi cua lột thông minh. Stack: FastAPI, PostgreSQL, SQLAlchemy 2 async, Alembic, Pydantic v2, paho-mqtt và Docker Compose.
+FastAPI backend cho hệ thống farm nuôi cua lột: PostgreSQL async SQLAlchemy, Alembic, JWT auth, MQTT, WebSocket realtime, scan queue theo shelf, AI decision engine và sensor module.
 
-## Chạy project
+## Chạy Backend
 
 ```bash
 cd crab-farm-backend
 docker compose up --build
 ```
 
-Tạo migration ban đầu và apply database schema:
-
-```bash
-docker compose exec backend alembic revision --autogenerate -m "init"
-docker compose exec backend alembic upgrade head
-```
-
-Sau khi pull code có migration sẵn, thường chỉ cần:
+Apply migration:
 
 ```bash
 docker compose exec backend alembic upgrade head
 ```
-
-Trong môi trường Docker dev, `./alembic/versions` được mount vào container để migration tạo bằng `alembic revision` không bị mất sau khi rebuild image.
 
 Tạo admin ban đầu:
 
@@ -36,22 +27,7 @@ Mặc định đọc từ env:
 - `ADMIN_PASSWORD=admin123`
 - `ADMIN_EMAIL=admin@example.com`
 
-Login lấy JWT:
-
-```bash
-curl -X POST http://localhost:8000/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}'
-```
-
-Gọi API có Bearer token:
-
-```bash
-curl http://localhost:8000/api/v1/tanks \
-  -H "Authorization: Bearer <access_token>"
-```
-
-Chạy frontend riêng:
+Frontend:
 
 ```bash
 cd ../crab-farm-frontend
@@ -59,255 +35,242 @@ npm install
 npm run serve
 ```
 
-Frontend dev server mặc định: http://localhost:8080
+URL chính:
 
-Hoặc chạy kèm bằng Docker Compose service `frontend`:
+- API docs: `http://localhost:8000/docs`
+- Health: `http://localhost:8000/health`
+- Frontend: `http://localhost:8080`
+- WebSocket: `ws://localhost:8000/ws?token=<JWT>`
 
-```bash
-docker compose up --build frontend
+## Auth Và Role
+
+JWT Bearer token được giữ nguyên. Viewer chỉ đọc dữ liệu. Các action/write yêu cầu `admin` hoặc `operator`: scan, motion, MQTT publish, emergency stop, edit shelves/tanks, schedules và sensor config.
+
+## Simulation Mode
+
+Env:
+
+```env
+SIMULATION_MODE=true
+MQTT_SIMULATE_PUBLISH=false
+AI_MOCK_MODE=false
 ```
 
-API docs:
+Khi `SIMULATION_MODE=true`, motion/camera không được coi là thành công phần cứng thật. `scan_job` và `scan_job_item` kết thúc là `simulated`, không phải `success`. Frontend hiển thị banner Simulation Mode.
 
-- Swagger UI: http://localhost:8000/docs
-- Health: http://localhost:8000/health
-- WebSocket realtime: `ws://localhost:8000/ws?token=<JWT>`
+## Scan Queue
 
-## API chính
+Tất cả scan tạo `scan_job.status=queued` rồi đi qua `scan_runner`:
 
-- Tanks: `GET/POST /api/v1/tanks`, `GET/PATCH/DELETE /api/v1/tanks/{tank_id}`
-- Devices: `GET/POST /api/v1/devices`, `PATCH /api/v1/devices/{device_id}/status`
-- Motion: `POST /api/v1/motion/home`, `POST /api/v1/motion/move-to-tank/{tank_id}`, `POST /api/v1/motion/gcode`, `POST /api/v1/motion/emergency-stop`
-- Camera: `POST /api/v1/camera/capture/{tank_id}`, `POST /api/v1/camera/upload`, `GET /api/v1/camera/images`
-- Detections: `POST /api/v1/detections/mock`, `GET /api/v1/detections`, `GET /api/v1/detections/by-tank/{tank_id}`
-- Harvest: `POST /api/v1/harvest/queue/{tank_id}`, `POST /api/v1/harvest/start/{harvest_id}`, `GET /api/v1/harvest`
-- Scan schedules: `GET/POST /api/v1/scan-schedules`, `GET/PATCH/DELETE /api/v1/scan-schedules/{schedule_id}`, `POST /api/v1/scan-schedules/{schedule_id}/enable`, `POST /api/v1/scan-schedules/{schedule_id}/disable`
-- Scans: `POST /api/v1/scans/run-all`, `POST /api/v1/scans/run-tank/{tank_id}`, `GET /api/v1/scans/jobs`, `GET /api/v1/scans/jobs/{job_id}`
-- Shelves: `GET/POST /api/v1/shelves`, `GET/PATCH /api/v1/shelves/{shelf_id}`, `POST /api/v1/shelves/{shelf_id}/maintenance`, `POST /api/v1/shelves/{shelf_id}/activate`
-- Scan jobs v2: `GET /api/v1/scan-jobs`, `GET /api/v1/scan-jobs/{job_id}`
-- Recheck tasks: `GET /api/v1/recheck-tasks`, `POST /api/v1/recheck-tasks/{id}/cancel`, `POST /api/v1/recheck-tasks/run-due-now`
-- MQTT console: `GET /api/v1/mqtt/logs`, `GET /api/v1/mqtt/topics`, `POST /api/v1/mqtt/publish`
-- AI: `GET /api/v1/ai/status`, `GET /api/v1/ai/models`, `POST /api/v1/ai/models/activate`, `POST /api/v1/ai/detect/{image_id}`
-- Training samples: `GET /api/v1/training-samples`, `POST /api/v1/training-samples/from-detection/{detection_id}`, `PATCH /api/v1/training-samples/{id}/label`, `POST /api/v1/datasets/export-yolo`
-- Auth settings: `POST /api/v1/auth/change-password`
+- Manual run all: `POST /api/v1/scans/run-all?shelf_id=<optional>`
+- Manual scan tank: `POST /api/v1/scans/run-tank/{tank_id}`
+- Scheduled scan: sinh job từ `scan_schedules`
+- AUTO recheck/verify: dùng `scan_schedules.tag=AUTO`
 
-## Realtime events
+Priority mặc định:
 
-FastAPI cung cấp WebSocket `/ws?token=<JWT>`. Event format:
+- harvest: `1`
+- auto_verify: `5`
+- auto_recheck: `10`
+- manual_scan: `20`
+- scheduled_scan: `100`
+
+Cùng một `shelf_id` chỉ dispatch một scan job đang chạy tại một thời điểm. Khác shelf có thể chạy song song. `SCAN_DEDUPE_SECONDS=60` áp dụng cho user periodic schedules để bỏ qua tank vừa scan gần đây.
+
+Scan item flow:
+
+1. `moving`
+2. tạo `motion_command` `move_to_tank`
+3. publish MQTT motion command
+4. chờ motion `DONE`
+5. đợi `MOTION_SETTLE_MS`
+6. publish camera capture
+7. chờ camera result/upload
+8. chạy AI detect
+9. lưu detection và chạy decision engine
+
+Không publish camera capture trước motion `DONE`.
+
+Scan job status:
+
+- `success`: tất cả item cần scan success
+- `partial_success`: có item success và có item failed/timeout
+- `failed`: tất cả item failed/timeout
+- `simulated`: simulation mode hoặc tất cả item simulated
+- `queued`, `running`, `cancelled`
+
+Scan item status:
+
+`queued`, `waiting_for_motion`, `moving`, `motion_done`, `waiting_for_camera`, `capturing`, `image_received`, `detecting`, `success`, `failed`, `timeout`, `simulated`, `skipped`.
+
+## Scan Schedules
+
+API:
+
+- `GET /api/v1/scan-schedules?shelf_id=&tag=&schedule_type=&is_active=`
+- `POST /api/v1/scan-schedules`
+- `GET/PATCH /api/v1/scan-schedules/{id}`
+- `POST /api/v1/scan-schedules/{id}/enable`
+- `POST /api/v1/scan-schedules/{id}/disable`
+- `POST /api/v1/scan-schedules/{id}/cancel`
+
+User schedule:
 
 ```json
 {
-  "event": "mqtt_log_created",
-  "data": {},
-  "created_at": "2026-05-14T10:00:00Z"
+  "schedule_type": "user_periodic",
+  "tag": "USER",
+  "scan_mode": "all_tanks",
+  "interval_minutes": 120,
+  "priority": 100,
+  "run_immediately": false
 }
 ```
 
-Các event chính:
+Mặc định tạo schedule không scan ngay. Nếu `run_immediately=false`, `next_run_at = now + interval_minutes`. Chỉ khi `run_immediately=true` backend mới tạo thêm queued scan job ngay, còn `next_run_at` vẫn là lần chạy chu kỳ tiếp theo.
 
-- `device_status_updated`
-- `mqtt_log_created`
-- `motion_command_updated`
-- `scan_job_created`
-- `scan_job_updated`
-- `scan_job_item_updated`
-- `detection_created`
-- `harvest_updated`
-- `emergency_stop_triggered`
-- `ai_model_changed`
+AUTO schedules do decision engine tạo:
 
-## Env quan trọng
+- `auto_recheck`: cua đang lột, ảnh xấu, uncertain
+- `auto_verify`: nghi cua đã lột, verify một lần trước khi queue harvest
+
+`recheck_tasks` vẫn còn API/table để backward compatible, nhưng flow mới không dùng nữa.
+
+## AI Decision Engine
+
+Sau detection:
+
+- `crab_normal`: tank `normal`, complete AUTO schedules liên quan nếu confidence đủ cao.
+- `crab_molting`: tank `molting`, tạo/cập nhật AUTO `auto_recheck`.
+- `crab_soft_shell` confidence cao: tank `soft_shell`, tạo AUTO `auto_verify` sau `SOFT_SHELL_VERIFY_SECONDS`, chưa harvest ngay.
+- `auto_verify` vẫn `crab_soft_shell`: tạo harvest queued, complete AUTO verify/recheck.
+- `uncertain_or_bad_image`: tạo/cập nhật AUTO `auto_recheck`.
+- `empty_tank`: tank `empty`, complete AUTO schedules nếu confidence đủ cao.
+
+Env liên quan:
 
 ```env
-APP_TIMEZONE=Asia/Ho_Chi_Minh
-SIMULATION_MODE=true
-MQTT_SIMULATE_PUBLISH=false
 MOLTING_RECHECK_MINUTES=10
 UNCERTAIN_RECHECK_MINUTES=3
 SOFT_SHELL_VERIFY_SECONDS=60
 SOFT_SHELL_CONFIDENCE_THRESHOLD=0.85
+AUTO_RECHECK_MAX_RUNS=12
+AUTO_RECHECK_EXPIRE_HOURS=3
+SCAN_DEDUPE_SECONDS=60
 MOTION_TIMEOUT_SECONDS=60
 CAMERA_TIMEOUT_SECONDS=30
 AI_TIMEOUT_SECONDS=30
 MOTION_SETTLE_MS=800
-AI_ENABLED=true
-AI_MOCK_MODE=false
-AI_MODEL_PATH=storage/models/crab_yolov8_v1.pt
-AI_MODEL_VERSION=crab_yolov8_v1
-AI_CONFIDENCE_THRESHOLD=0.5
-AI_IMAGE_SIZE=640
 ```
 
-`SIMULATION_MODE=true` không publish motion/camera thật nếu `MQTT_SIMULATE_PUBLISH=false`; scan job/item kết thúc ở `simulated`, không giả lập `success`.
+## Shelves Và Tanks
 
-## Scan queue thực tế
+API chính:
 
-- Schedule chỉ tạo `scan_job` status `queued`, không chạy trực tiếp.
-- `scan_runner` lấy job theo `priority`, `created_at`.
-- Cùng một `shelf_id` chỉ chạy một scan/harvest/motion job tại một thời điểm.
-- Flow scan item: move command -> chờ motion done -> settle -> camera capture -> chờ image -> AI detect -> decision engine.
-- Không publish camera capture trước bước motion done. Trong MVP hiện phần chờ ACK/DONE thật là điểm tích hợp tiếp theo; nếu không simulation và chưa có camera result, item sẽ timeout/failed thay vì success.
+- `GET/POST /api/v1/shelves`
+- `GET/PATCH /api/v1/shelves/{id}`
+- `POST /api/v1/shelves/{id}/maintenance`
+- `POST /api/v1/shelves/{id}/activate`
+- `GET /api/v1/tanks?shelf_id=...`
+- `POST /api/v1/tanks`
+- `GET/PATCH/DELETE /api/v1/tanks/{id}`
 
-## Multi-shelf MQTT topics
+Frontend gộp Shelves/Tanks thành Farm Layout: chọn shelf bên trái, xem/edit shelf và tanks bên phải, có table/grid layout, scan tank, move to tank và filter theo status/level/row/column.
 
-Topic phân tầng mới:
+## Sensor Module
 
-- `farm/shelf/{shelf_code}/motion/cmd`
-- `farm/shelf/{shelf_code}/motion/ack`
-- `farm/shelf/{shelf_code}/motion/status`
-- `farm/shelf/{shelf_code}/motion/error`
-- `farm/shelf/{shelf_code}/camera/cmd`
-- `farm/shelf/{shelf_code}/camera/status`
-- `farm/shelf/{shelf_code}/camera/result`
-- `farm/shelf/{shelf_code}/device/status`
+Tables:
 
-Server subscribe `farm/#` và lưu toàn bộ MQTT logs.
+- `sensor_types`
+- `sensors`
+- `sensor_readings`
+- `sensor_alert_rules`
+- `sensor_alerts`
 
-Ví dụ tạo tank:
+API:
+
+- `GET/POST/PATCH /api/v1/sensor-types`
+- `GET/POST/PATCH/DELETE /api/v1/sensors`
+- `GET/POST /api/v1/sensor-readings`
+- `GET /api/v1/sensor-readings/latest?tank_id=...|shelf_id=...`
+- `GET/POST/PATCH /api/v1/sensor-alert-rules`
+- `GET /api/v1/sensor-alerts`
+- `POST /api/v1/sensor-alerts/{id}/ack`
+- `POST /api/v1/sensor-alerts/{id}/resolve`
+
+Sensor có thể thuộc tank hoặc shelf. Backend validate sensor phải có ít nhất một trong `tank_id` hoặc `shelf_id`.
+
+MQTT sensor topics:
+
+- `farm/shelf/{shelf_code}/tank/{tank_code}/sensor/{sensor_type}`
+- `farm/shelf/{shelf_code}/sensor/{sensor_type}`
+
+Payload:
+
+```json
+{
+  "sensor_code": "TEMP_T001",
+  "shelf_code": "SHELF_01",
+  "tank_code": "T001",
+  "type": "temperature",
+  "value": 27.4,
+  "unit": "C",
+  "measured_at": "2026-05-15T10:00:00Z"
+}
+```
+
+Test MQTT sensor:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/tanks \
-  -H "Content-Type: application/json" \
-  -d '{"code":"T001","name":"Tank 001","row_index":1,"col_index":1,"level_index":1,"x_position":120,"y_position":0,"z_position":300,"status":"normal"}'
+docker compose exec mosquitto mosquitto_pub -h localhost \
+  -t "farm/shelf/SHELF_01/tank/T001/sensor/temperature" \
+  -m '{"sensor_code":"TEMP_T001","shelf_code":"SHELF_01","tank_code":"T001","type":"temperature","value":27.4,"unit":"C"}'
 ```
 
-Ví dụ gửi G-code:
+Backend sẽ lưu `sensor_reading`, check alert rules, broadcast `sensor_reading_created` và nếu vượt ngưỡng thì tạo/broadcast `sensor_alert_created`.
 
-```bash
-curl -X POST http://localhost:8000/api/v1/motion/gcode \
-  -H "Content-Type: application/json" \
-  -d '{"lines":["G90","G1 X120 Z300 F3000","M400"]}'
-```
+## MQTT Console
 
-Ví dụ upload ảnh:
+API:
 
-```bash
-curl -X POST http://localhost:8000/api/v1/camera/upload \
-  -F "tank_id=<tank_uuid>" \
-  -F "file=@sample.jpg"
-```
+- `GET /api/v1/mqtt/logs`
+- `GET /api/v1/mqtt/topics`
+- `POST /api/v1/mqtt/publish`
 
-Ví dụ tạo lịch scan tất cả bể mỗi 15 phút:
+Console frontend hỗ trợ All topics, filter contains, publish realtime, pretty JSON payload. Clear console chỉ clear local UI, không xóa DB.
 
-```bash
-curl -X POST http://localhost:8000/api/v1/scan-schedules \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Scan every 15 minutes","interval_minutes":15,"scan_mode":"all_tanks","is_active":true}'
-```
+## WebSocket Realtime
 
-Ví dụ chạy scan thủ công một bể:
-
-```bash
-curl -X POST http://localhost:8000/api/v1/scans/run-tank/<tank_uuid>
-```
-
-Scan scheduler chạy cùng FastAPI và kiểm tra lịch đến hạn mỗi 60 giây. MVP hiện tạo `scan_job`, tạo `scan_job_items`, chạy tuần tự qua các trạng thái `moving -> capturing -> detecting -> success`, publish motion/camera MQTT command và để sẵn placeholder cho bước chờ ACK, nhận ảnh, chạy detection thật.
-
-## Test MQTT
-
-Theo dõi command server publish:
-
-```bash
-docker compose exec mosquitto mosquitto_sub -h localhost -t 'farm/motion/cmd' -v
-```
-
-Giả lập ESP32 gửi ACK về server:
-
-```bash
-docker compose exec mosquitto mosquitto_pub -h localhost -t farm/motion/ack \
-  -m '{"cmd_id":"CMD_20260512_000001","status":"done","message":"completed"}'
-```
-
-Theo dõi tất cả topic farm:
-
-```bash
-docker compose exec mosquitto mosquitto_sub -h localhost -t 'farm/#' -v
-```
-
-Publish test ACK:
-
-```bash
-docker compose exec mosquitto mosquitto_pub -h localhost -t "farm/shelf/SHELF_01/motion/ack" \
-  -m '{"cmd_id":"CMD_001","status":"done"}'
-```
-
-Publish từ dashboard dùng `POST /api/v1/mqtt/publish` hoặc trang MQTT Console.
-
-## AI YOLOv8 pipeline
-
-Thư mục storage:
+Endpoint:
 
 ```text
-storage/
-  raw/
-  detected/
-  datasets/
-  models/
-    crab_yolov8_v1.pt
-    active_model.txt
+GET /ws?token=JWT_TOKEN
 ```
 
-Luồng triển khai model:
+Event format:
 
-1. Thu ảnh bằng camera/upload vào `storage/raw`.
-2. Chạy detect: `POST /api/v1/ai/detect/{image_id}`.
-3. Verify hoặc sửa label trên dashboard Detections/Training Samples.
-4. Export dataset YOLO: `POST /api/v1/datasets/export-yolo`.
-5. Train trên máy mạnh/cloud GPU.
-6. Copy `best.pt` vào `storage/models`.
-7. Activate model:
-
-```bash
-curl -X POST http://localhost:8000/api/v1/ai/models/activate \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{"model_path":"storage/models/crab_yolov8_v2.pt","model_version":"crab_yolov8_v2"}'
+```json
+{
+  "event": "scan_job_updated",
+  "data": {
+    "id": "...",
+    "status": "running"
+  },
+  "created_at": "2026-05-15T10:00:00Z"
+}
 ```
 
-Ghi chú MVP: exporter ghi YOLO label từ bbox đã normalized nếu có `x_center/y_center/width/height`; nếu bbox thiếu hoặc format khác thì tạm xuất full-image bbox và ghi chú trong `data.yaml`. Server farm nên chạy inference; training nên chạy trên GPU/cloud.
+Events chính:
 
-## Frontend
+- `shelf_created`, `shelf_updated`
+- `tank_created`, `tank_updated`
+- `sensor_reading_created`, `sensor_alert_created`
+- `mqtt_log_created`
+- `motion_command_created`, `motion_command_updated`
+- `scan_schedule_created`, `scan_schedule_updated`
+- `scan_job_created`, `scan_job_updated`, `scan_job_item_updated`
+- `detection_created`
+- `harvest_updated`
+- `emergency_stop_triggered`
 
-```bash
-cd ../crab-farm-frontend
-npm install
-npm run serve
-```
-
-Login admin mặc định: `admin / admin123`.
-
-Các trang mới/chính:
-
-- Dashboard realtime + banner simulation mode
-- Shelves
-- Tanks filter theo shelf
-- Scan Schedules
-- Scan Jobs
-- Recheck Tasks
-- MQTT Console realtime
-- Detections verify
-- Training Samples export YOLO
-- Settings đổi mật khẩu + AI model status/activate
-
-## MQTT topics
-
-Server publish:
-
-- `farm/motion/cmd`
-- `farm/camera/cmd`
-
-Server subscribe:
-
-- `farm/motion/ack`
-- `farm/motion/status`
-- `farm/motion/error`
-- `farm/camera/status`
-- `farm/camera/result`
-
-## Việc cần làm tiếp theo
-
-- Thêm auth cho dashboard và phân quyền operator/admin.
-- Chuẩn hóa protocol ACK/status từ ESP32 và Pi Camera.
-- Thêm background job timeout cho motion command.
-- Thêm detection service thật, lưu ảnh detected/verify và pipeline review.
-- Thêm test suite, seed data và dashboard Vue.
+Frontend tự connect sau login, auto reconnect khi mất kết nối và disconnect khi logout.

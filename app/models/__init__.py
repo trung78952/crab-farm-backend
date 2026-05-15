@@ -13,6 +13,7 @@ from app.models.shelf import Shelf
 from app.models.scan_schedule import ScanSchedule
 from app.models.scan_job import ScanJob
 from app.models.scan_job_item import ScanJobItem
+from app.models.sensor import Sensor, SensorAlert, SensorAlertRule, SensorReading, SensorType
 from app.models.training_sample import TrainingSample
 
 __all__ = [
@@ -31,5 +32,10 @@ __all__ = [
     "ScanSchedule",
     "ScanJob",
     "ScanJobItem",
+    "SensorType",
+    "Sensor",
+    "SensorReading",
+    "SensorAlertRule",
+    "SensorAlert",
     "TrainingSample",
 ]

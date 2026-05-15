@@ -30,3 +30,4 @@ class Device(Base):
 
     shelf = relationship("Shelf", back_populates="devices", foreign_keys=[shelf_id])
     images = relationship("Image", back_populates="device")
+    sensors = relationship("Sensor", back_populates="device")

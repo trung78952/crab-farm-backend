@@ -10,8 +10,11 @@ from app.schemas.tank import TankCreate, TankUpdate
 from app.services.realtime_service import realtime_service
 
 
-async def list_tanks(db: AsyncSession) -> list[Tank]:
-    result = await db.execute(select(Tank).order_by(Tank.row_index, Tank.col_index, Tank.level_index, Tank.code))
+async def list_tanks(db: AsyncSession, shelf_id: UUID | None = None) -> list[Tank]:
+    stmt = select(Tank).order_by(Tank.level_index, Tank.row_index, Tank.col_index, Tank.code)
+    if shelf_id is not None:
+        stmt = stmt.where(Tank.shelf_id == shelf_id)
+    result = await db.execute(stmt)
     return list(result.scalars().all())
 
 
@@ -29,6 +32,10 @@ async def create_tank(db: AsyncSession, data: TankCreate) -> Tank:
     db.add(tank)
     await db.commit()
     await db.refresh(tank)
+    await realtime_service.broadcast(
+        "tank_created",
+        {"id": str(tank.id), "shelf_id": str(tank.shelf_id) if tank.shelf_id else None, "code": tank.code, "status": tank.status},
+    )
     return tank
 
 
@@ -41,7 +48,10 @@ async def update_tank(db: AsyncSession, tank_id: UUID, data: TankUpdate) -> Tank
         setattr(tank, key, value)
     await db.commit()
     await db.refresh(tank)
-    await realtime_service.broadcast("device_status_updated", {"tank_id": str(tank.id), "status": tank.status})
+    await realtime_service.broadcast(
+        "tank_updated",
+        {"id": str(tank.id), "shelf_id": str(tank.shelf_id) if tank.shelf_id else None, "code": tank.code, "status": tank.status},
+    )
     return tank
 
 
@@ -49,3 +59,4 @@ async def delete_tank(db: AsyncSession, tank_id: UUID) -> None:
     tank = await get_tank(db, tank_id)
     await db.delete(tank)
     await db.commit()
+    await realtime_service.broadcast("tank_updated", {"id": str(tank_id), "deleted": True})

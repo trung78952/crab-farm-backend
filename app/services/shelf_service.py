@@ -28,7 +28,10 @@ async def create_shelf(db: AsyncSession, data: ShelfCreate) -> Shelf:
     db.add(shelf)
     await db.commit()
     await db.refresh(shelf)
-    await realtime_service.broadcast("device_status_updated", {"shelf_id": str(shelf.id), "status": shelf.status})
+    await realtime_service.broadcast(
+        "shelf_created",
+        {"id": str(shelf.id), "code": shelf.code, "name": shelf.name, "status": shelf.status},
+    )
     return shelf
 
 
@@ -41,7 +44,10 @@ async def update_shelf(db: AsyncSession, shelf_id: UUID, data: ShelfUpdate) -> S
         setattr(shelf, key, value)
     await db.commit()
     await db.refresh(shelf)
-    await realtime_service.broadcast("device_status_updated", {"shelf_id": str(shelf.id), "status": shelf.status})
+    await realtime_service.broadcast(
+        "shelf_updated",
+        {"id": str(shelf.id), "code": shelf.code, "name": shelf.name, "status": shelf.status},
+    )
     return shelf
 
 

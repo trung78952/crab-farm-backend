@@ -42,6 +42,8 @@ class ScanRunner:
 
     async def dispatch_once(self) -> None:
         async with AsyncSessionLocal() as db:
+            running_result = await db.execute(select(ScanJob).where(ScanJob.status == "running"))
+            running_shelves = {str(job.shelf_id or "global") for job in running_result.scalars().all()}
             result = await db.execute(
                 select(ScanJob)
                 .where(ScanJob.status == "queued")
@@ -51,7 +53,7 @@ class ScanRunner:
 
         for job in jobs:
             shelf_key = str(job.shelf_id or "global")
-            if shelf_key in self._busy_shelves:
+            if shelf_key in self._busy_shelves or shelf_key in running_shelves:
                 continue
             self._busy_shelves.add(shelf_key)
             task = asyncio.create_task(self._run_job(job.id, shelf_key))

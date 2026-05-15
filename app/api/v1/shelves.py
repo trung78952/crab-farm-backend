@@ -16,7 +16,7 @@ async def list_shelves(db: AsyncSession = Depends(get_db)):
     return await shelf_service.list_shelves(db)
 
 
-@router.post("", response_model=ShelfRead, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_roles("admin"))])
+@router.post("", response_model=ShelfRead, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_roles("operator"))])
 async def create_shelf(data: ShelfCreate, db: AsyncSession = Depends(get_db)):
     return await shelf_service.create_shelf(db, data)
 
@@ -26,7 +26,7 @@ async def get_shelf(shelf_id: UUID, db: AsyncSession = Depends(get_db)):
     return await shelf_service.get_shelf(db, shelf_id)
 
 
-@router.patch("/{shelf_id}", response_model=ShelfRead, dependencies=[Depends(require_roles("admin"))])
+@router.patch("/{shelf_id}", response_model=ShelfRead, dependencies=[Depends(require_roles("operator"))])
 async def update_shelf(shelf_id: UUID, data: ShelfUpdate, db: AsyncSession = Depends(get_db)):
     return await shelf_service.update_shelf(db, shelf_id, data)
 

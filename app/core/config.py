@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     uncertain_recheck_minutes: int = 3
     soft_shell_verify_seconds: int = 60
     soft_shell_confidence_threshold: float = 0.85
+    auto_recheck_max_runs: int = 12
+    auto_recheck_expire_hours: int = 3
+    scan_dedupe_seconds: int = 60
 
     motion_timeout_seconds: int = 60
     camera_timeout_seconds: int = 30

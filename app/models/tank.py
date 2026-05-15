@@ -38,3 +38,7 @@ class Tank(Base):
     harvests = relationship("Harvest", back_populates="tank", passive_deletes=True)
     scan_job_items = relationship("ScanJobItem", back_populates="tank", passive_deletes=True)
     recheck_tasks = relationship("RecheckTask", back_populates="tank", passive_deletes=True)
+    sensors = relationship("Sensor", back_populates="tank", passive_deletes=True)
+    sensor_readings = relationship("SensorReading", back_populates="tank", passive_deletes=True)
+    sensor_alert_rules = relationship("SensorAlertRule", back_populates="tank", passive_deletes=True)
+    sensor_alerts = relationship("SensorAlert", back_populates="tank", passive_deletes=True)

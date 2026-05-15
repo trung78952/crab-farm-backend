@@ -141,9 +141,11 @@ async def _create_publish_command(
     from app.services.realtime_service import realtime_service
 
     await realtime_service.broadcast(
-        "emergency_stop_triggered" if command.command_type == "emergency_stop" else "motion_command_updated",
-        {"id": str(command.id), "cmd_id": command.cmd_id, "status": command.status},
+        "motion_command_created",
+        {"id": str(command.id), "cmd_id": command.cmd_id, "command_type": command.command_type, "status": command.status},
     )
+    if command.command_type == "emergency_stop":
+        await realtime_service.broadcast("emergency_stop_triggered", {"id": str(command.id), "cmd_id": command.cmd_id, "status": command.status})
     return command
 
 

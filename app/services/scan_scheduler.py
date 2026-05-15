@@ -10,7 +10,7 @@ from app.core.database import AsyncSessionLocal
 from app.models.scan_schedule import ScanSchedule
 from app.services.scan_schedule_service import mark_schedule_dispatched
 from app.services.scan_service import create_scan_job_from_schedule
-from app.services.recheck_task_service import run_due_recheck_tasks_now
+from app.services.realtime_service import realtime_service
 
 logger = logging.getLogger(__name__)
 
@@ -57,15 +57,34 @@ async def dispatch_due_scan_schedules() -> None:
         schedules = list(result.scalars().all())
 
         for schedule in schedules:
+            if schedule.start_at is not None and now < schedule.start_at:
+                continue
             if schedule.start_time is not None and now < schedule.start_time:
                 continue
+            if schedule.expires_at is not None and now > schedule.expires_at:
+                schedule.is_active = False
+                schedule.completed_at = now
+                schedule.stop_condition = schedule.stop_condition or "expired"
+                await realtime_service.broadcast("scan_schedule_updated", {"id": str(schedule.id), "is_active": False, "completed_at": schedule.completed_at.isoformat()})
+                continue
             if schedule.end_time is not None and now > schedule.end_time:
+                schedule.is_active = False
                 continue
 
-            job = await create_scan_job_from_schedule(db, schedule)
+            await create_scan_job_from_schedule(db, schedule)
             await mark_schedule_dispatched(db, schedule, now=now)
             await db.commit()
-        await run_due_recheck_tasks_now()
+            await realtime_service.broadcast(
+                "scan_schedule_updated",
+                {
+                    "id": str(schedule.id),
+                    "last_run_at": schedule.last_run_at.isoformat() if schedule.last_run_at else None,
+                    "next_run_at": schedule.next_run_at.isoformat() if schedule.next_run_at else None,
+                    "is_active": schedule.is_active,
+                    "run_count": schedule.run_count,
+                },
+            )
+        await db.commit()
 
 
 scan_scheduler = ScanScheduler()

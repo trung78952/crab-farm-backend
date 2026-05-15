@@ -26,8 +26,7 @@ async def create_mock_detection(db: AsyncSession, data: DetectionMockCreate) -> 
     if image.tank_id != data.tank_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Image does not belong to tank")
 
-    is_soft_shell = data.class_name in {"soft_shell_crab", "crab_soft_shell"} and data.confidence >= 0.85
-    action = data.action or ("harvest" if is_soft_shell else "none")
+    action = data.action or "none"
 
     detection = Detection(
         tank_id=data.tank_id,

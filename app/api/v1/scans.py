@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import require_roles
@@ -11,9 +11,9 @@ from app.services import scan_service
 router = APIRouter()
 
 
-@router.post("/run-all", response_model=ScanJobRead, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_roles("operator"))])
-async def run_all(db: AsyncSession = Depends(get_db)):
-    return await scan_service.run_all(db)
+@router.post("/run-all", response_model=list[ScanJobRead], status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_roles("operator"))])
+async def run_all(shelf_id: UUID | None = Query(None), db: AsyncSession = Depends(get_db)):
+    return await scan_service.run_all(db, shelf_id=shelf_id)
 
 
 @router.post("/run-tank/{tank_id}", response_model=ScanJobRead, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_roles("operator"))])

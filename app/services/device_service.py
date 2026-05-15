@@ -41,4 +41,8 @@ async def update_device_status(db: AsyncSession, device_id: UUID, data: DeviceSt
     device.last_seen_at = data.last_seen_at or datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(device)
+    await realtime_service.broadcast(
+        "device_status_updated",
+        {"id": str(device.id), "code": device.code, "status": device.status, "last_seen_at": device.last_seen_at.isoformat() if device.last_seen_at else None},
+    )
     return device
