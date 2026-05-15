@@ -49,7 +49,8 @@ async def detect_image(db: AsyncSession, image_id: UUID) -> Detection:
             yolo = YOLO(str(model_path))
             results = yolo(str(image.image_path), imgsz=settings.ai_image_size, conf=settings.ai_confidence_threshold, verbose=False)
             if results and len(results[0].boxes) > 0:
-                box = results[0].boxes[0]
+                best_idx = int(results[0].boxes.conf.argmax().item())
+                box = results[0].boxes[best_idx]
                 cls_idx = int(box.cls[0].item())
                 names = results[0].names
                 class_name = names.get(cls_idx, str(cls_idx))
@@ -62,7 +63,7 @@ async def detect_image(db: AsyncSession, image_id: UUID) -> Detection:
     detection = Detection(
         tank_id=image.tank_id,
         image_id=image.id,
-        class_name=class_name,
+        class_name=_normalize_class_name(class_name),
         confidence=confidence,
         bbox=bbox,
         action="none",
@@ -81,3 +82,17 @@ async def detect_image(db: AsyncSession, image_id: UUID) -> Detection:
         {"id": str(detection.id), "tank_id": str(detection.tank_id), "class_name": detection.class_name, "confidence": detection.confidence},
     )
     return detection
+
+
+def _normalize_class_name(class_name: str) -> str:
+    aliases = {
+        "crab": "crab_normal",
+        "normal_crab": "crab_normal",
+        "molting": "crab_molting",
+        "molting_crab": "crab_molting",
+        "soft_shell_crab": "crab_soft_shell",
+        "softshell_crab": "crab_soft_shell",
+        "bad_image": "uncertain_or_bad_image",
+        "uncertain": "uncertain_or_bad_image",
+    }
+    return aliases.get(class_name, class_name)
